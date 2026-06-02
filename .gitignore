@@ -1,0 +1,18 @@
+# 環境変数ファイル（APIキーを含むため絶対にコミットしない）
+.env
+
+# 依存パッケージ
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# Vite ビルド成果物
+client/dist/
+client/.vite/
+
+# macOS システムファイル
+.DS_Store
+
+# エディタ設定
+.vscode/
+.idea/
