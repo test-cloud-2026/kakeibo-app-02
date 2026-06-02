@@ -10,6 +10,7 @@ export default function App() {
   const { expenses, addExpenses, deleteExpense, clearAll } = useExpenses();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [warnings, setWarnings] = useState([]);
   // 表示タブ: 'list'（明細一覧）| 'charts'（グラフ・集計）
   const [activeTab, setActiveTab] = useState('list');
 
@@ -17,6 +18,7 @@ export default function App() {
   const handleReceiptUpload = async (file) => {
     setIsLoading(true);
     setError(null);
+    setWarnings([]);
 
     const formData = new FormData();
     formData.append('receipt', file);
@@ -33,6 +35,38 @@ export default function App() {
       }
 
       const data = await response.json();
+
+      // ── 検証1: 負の金額チェック ──────────────────────────────
+      const newWarnings = [];
+      const negativeItems = data.items.filter((item) => Number(item.price) < 0);
+      if (negativeItems.length > 0) {
+        const names = negativeItems.map((i) => `${i.name}（¥${i.price}）`).join('、');
+        newWarnings.push(`負の金額の商品が含まれています: ${names}`);
+      }
+
+      // ── 検証2: 同一日時・合計金額の重複チェック ────────────────
+      const incomingTotal = data.items.reduce((sum, item) => sum + Number(item.price), 0);
+      // 登録済み支出をレシートID単位で集計
+      const receiptMap = {};
+      expenses.forEach((e) => {
+        if (!receiptMap[e.receiptId]) receiptMap[e.receiptId] = { date: e.date, total: 0 };
+        receiptMap[e.receiptId].total += e.price;
+      });
+      const isDuplicate = Object.values(receiptMap).some(
+        (r) => r.date === data.date && Math.abs(r.total - incomingTotal) < 1
+      );
+      if (isDuplicate) {
+        const confirmed = window.confirm(
+          `${data.date} / 合計 ¥${incomingTotal.toLocaleString()} のレシートが既に登録されています。\n重複して追加しますか？`
+        );
+        if (!confirmed) {
+          setIsLoading(false);
+          return;
+        }
+        newWarnings.push(`重複レシートを追加しました（${data.date} / ¥${incomingTotal.toLocaleString()}）`);
+      }
+
+      if (newWarnings.length > 0) setWarnings(newWarnings);
 
       // レシート1枚を識別するIDを付与し、各アイテムを個別のレコードとして登録
       const receiptId = crypto.randomUUID();
@@ -78,6 +112,16 @@ export default function App() {
             <div className="error-banner">
               <span>⚠️ {error}</span>
               <button onClick={() => setError(null)}>✕</button>
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div className="warning-banner">
+              <div className="warning-messages">
+                {warnings.map((w, i) => (
+                  <div key={i}>⚠️ {w}</div>
+                ))}
+              </div>
+              <button onClick={() => setWarnings([])}>✕</button>
             </div>
           )}
         </div>
